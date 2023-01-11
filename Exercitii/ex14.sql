@@ -1,72 +1,3 @@
---Exercitiul 14
---Definiti un pachet care sa includa tipuri de date complexe si obiecte necesare
---unui flux de actiuni integrate, specifice bazei de date definite (minim 2 tipuri de date, minim 2 functii, minim 2 proceduri)
-
---Pentru fiecare echipa, obtineti numele precum si lista numelor angajatilor care isi desfasoara
---activitatea in cadrul acestora, si calculati salariul mediu pentru fiecare echipa.
-
-CREATE OR REPLACE PACKAGE proiect_sgbd_evs2 AS
-    TYPE refcursor is ref cursor;
-    TYPE angajat_echipa IS RECORD (
-        nume_angajat Employee.EmployeeName%TYPE,
-        salariu_angajat Job.JobSalary%TYPE
-    );
-    TYPE tabloul_angajati IS TABLE OF angajat_echipa;
-    CURSOR c_angajati(id_echipa Team.TeamID%TYPE) RETURN angajat_echipa;
-    TYPE echipa_record IS RECORD (
-        id_echipa Team.TeamID%TYPE,
-        nume_echipa Team.TeamName%TYPE,
-        --angajati_echipa care e un cursor
-        angajati_echipa c_angajati%TYPE
-    );
-    CURSOR c_echipe RETURN echipa_record;
-    FUNCTION salariu_mediu_echipa(nume_echipa Team.TeamName%TYPE) RETURN NUMBER;
-    PROCEDURE afisare_detalii_echipe;
-END proiect_sgbd_evs2;
-
-CREATE OR REPLACE PACKAGE BODY proiect_sgbd_evs2 AS
-    CURSOR c_angajati(id_echipa Team.TeamID%TYPE) RETURN angajat_echipa IS
-        SELECT Employee.EmployeeName, Job.JobSalary
-        FROM Employee, Job
-        WHERE Employee.TeamID = id_echipa AND Employee.JobID = Job.JobID;
-
-    CURSOR c_echipa RETURN echipa_record IS
-        SELECT Team.TeamID, Team.TeamName, c_angajati(Team.TeamID) angajati_echipa
-        FROM Team;
-
-    FUNCTION salariu_mediu_echipa(nume_echipa Team.TeamName%TYPE)
-        RETURN NUMBER IS
-        salariu_mediu NUMBER;
-        BEGIN
-            SELECT AVG(JobSalary)
-            INTO salariu_mediu
-            FROM Employee, Job, Team
-            WHERE Employee.JobID = Job.JobID AND Employee.TeamID = Team.TeamID AND TeamName = nume_echipa;
-            RETURN salariu_mediu;
-        END salariu_mediu_echipa;
-
-    PROCEDURE afisare_detalii_echipe IS
-        v_id_echipa Team.TeamID%TYPE;
-        v_nume_echipa Team.TeamName%TYPE;
-        v_cursor refcursor;
-        v_nume_angajat Employee.EmployeeName%TYPE;
-        v_salariu_angajat Job.JobSalary%TYPE;
-    BEGIN
-        OPEN c_echipa;
-        LOOP
-            FETCH c_echipa INTO v_id_echipa, v_nume_echipa, v_cursor;
-            EXIT WHEN c_echipa%NOTFOUND;
-            DBMS_OUTPUT.PUT_LINE('Echipa ' || v_nume_echipa || ' are salariul mediu de ' || salariu_mediu_echipa(v_nume_echipa));
-            LOOP
-                FETCH v_cursor INTO v_nume_angajat, v_salariu_angajat;
-                EXIT WHEN v_cursor%NOTFOUND;
-                DBMS_OUTPUT.PUT_LINE('Angajatul ' || v_nume_angajat || ' are salariul ' || v_salariu_angajat);
-            end loop;
-        end loop;
-    END afisare_detalii_echipe;
-END proiect_sgbd_evs2;
-
-
 --VARIANTA 2
 --Exercitiul 14
 --Definiti un pachet care sa includa tipuri de date complexe si obiecte necesare
@@ -74,25 +5,28 @@ END proiect_sgbd_evs2;
 
 --Pentru fiecare echipa, obtineti numele precum si lista numelor angajatilor care isi desfasoara
 --activitatea in cadrul acestora, si calculati salariul mediu pentru fiecare echipa. Pentru fiecare angajat
---se va afisa si functia acestuia.
+--se va afisa si functia acestuia si cati colegi din acelasi departament are si la aceeasi echipa are.
 
 CREATE OR REPLACE PACKAGE proiect_sgbd_evs2 AS
+    TYPE tablou_imbricat is TABLE OF VARCHAR2(100);
     TYPE echipa_record IS RECORD (
         id_echipa Team.TeamID%TYPE,
         nume_echipa Team.TeamName%TYPE
     );
     CURSOR c_echipa RETURN echipa_record;
-    FUNCTION salariu_mediu_echipa(nume_echipa Team.TeamName%TYPE) RETURN NUMBER;
-    PROCEDURE afisare_detalii_echipe;
-    TYPE tablou_imbricat is TABLE OF VARCHAR2(100);
-    FUNCTION functii_angajati RETURN tablou_imbricat;
     FUNCTION get_salariu(id_angajat Employee.EmployeeID%TYPE) RETURN NUMBER;
+    FUNCTION functii_angajati RETURN tablou_imbricat;
+    FUNCTION salariu_mediu_echipa(nume_echipa Team.TeamName%TYPE) RETURN NUMBER;
+    FUNCTION afisare_nr_colegi_angajat(id_angajat Employee.EmployeeID%TYPE) RETURN NUMBER;
+    PROCEDURE afisare_detalii_echipe;
 END proiect_sgbd_evs2;
 
 CREATE OR REPLACE PACKAGE BODY proiect_sgbd_evs2 AS
+
     CURSOR c_echipa RETURN echipa_record IS
         SELECT Team.TeamID, Team.TeamName
         FROM Team;
+
     FUNCTION get_salariu(id_angajat Employee.EmployeeID%TYPE) RETURN NUMBER IS
         salariu NUMBER;
     BEGIN
@@ -134,6 +68,29 @@ CREATE OR REPLACE PACKAGE BODY proiect_sgbd_evs2 AS
             RETURN salariu_mediu;
         END salariu_mediu_echipa;
 
+    FUNCTION afisare_nr_colegi_angajat(id_angajat Employee.EmployeeID%TYPE)
+        RETURN NUMBER IS
+        nr_colegi NUMBER;
+        TYPE angajat_record is RECORD(
+            id_angajat Employee.EmployeeName%TYPE,
+            id_job_angajat Job.JobID%TYPE,
+            id_echipa_angajat Team.TeamID%TYPE
+        );
+        angajatul_nostru angajat_record;
+        BEGIN
+            SELECT Employee.EmployeeName, Employee.JobID, Employee.TeamID
+            INTO angajatul_nostru
+            FROM Employee
+            WHERE Employee.EmployeeID = id_angajat;
+
+            SELECT COUNT(*)
+            INTO nr_colegi
+            FROM Employee
+            WHERE Employee.JobID = angajatul_nostru.id_job_angajat AND Employee.TeamID = angajatul_nostru.id_echipa_angajat;
+
+            RETURN nr_colegi;
+        END afisare_nr_colegi_angajat;
+
     PROCEDURE afisare_detalii_echipe IS
         nr_angajati NUMBER;
         i NUMBER;
@@ -157,7 +114,7 @@ CREATE OR REPLACE PACKAGE BODY proiect_sgbd_evs2 AS
                 FOR angajat in (SELECT EmployeeID, EmployeeName FROM Employee WHERE TeamID = record_echipa.id_echipa)
                 LOOP
                     j := j + 1;
-                    DBMS_OUTPUT.PUT_LINE(j || '. Angajatul ' || angajat.EmployeeName || ' are functia ' || vector_functii_angajati(angajat.EmployeeID) || ' si are un salariu de ' || get_salariu(angajat.EmployeeID));
+                    DBMS_OUTPUT.PUT_LINE(j || '. ' || angajat.EmployeeName || ' este ' || vector_functii_angajati(angajat.EmployeeID) || ', castiga ' || get_salariu(angajat.EmployeeID) || ' si are ' || afisare_nr_colegi_angajat(angajat.EmployeeID) || ' colegi din acelasi departament.');
                 END LOOP;
             else
                 DBMS_OUTPUT.PUT_LINE(i || '. Echipa ' || record_echipa.nume_echipa || ' nu are angajati');
