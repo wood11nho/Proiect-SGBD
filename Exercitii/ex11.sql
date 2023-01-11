@@ -22,9 +22,6 @@ DECLARE
     nume_echipa_noua Team.TeamName%TYPE;
     exista_jucator NUMBER;
 BEGIN
-    IF DELETING THEN
-        DBMS_OUTPUT.PUT_LINE('TEST DELETE');
-    end if;
     IF INSERTING or UPDATING THEN
         if :NEW.JerseyNumber > 99 or :NEW.JerseyNumber < 1 then
             raise exceptie_numar_invalid;
